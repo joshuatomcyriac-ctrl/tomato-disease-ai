@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tomato Disease AI</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #1b4332, #2d6a4f);
+            color: white;
+            text-align: center;
+            padding: 50px;
+            min-height: 100vh;
+            margin: 0;
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        p {
+            color: #b7e4c7;
+            font-size: 1.1rem;
+            margin-bottom: 30px;
+        }
+        .upload-box {
+            border: 3px dashed #95d5b2;
+            border-radius: 20px;
+            padding: 60px 20px;
+            max-width: 500px;
+            margin: 0 auto;
+            cursor: pointer;
+            background: rgba(255,255,255,0.05);
+            transition: all 0.3s;
+        }
+        .upload-box:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: white;
+        }
+        #result {
+            margin-top: 30px;
+            display: none;
+        }
+        #result img {
+            max-width: 90%;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .labels {
+            margin-top: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+        .badge {
+            background: rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 50px;
+            font-weight: 600;
+            backdrop-filter: blur(10px);
+        }
+        #fileInput {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🍅 Tomato Leaf Disease Detector</h1>
+    <p>Upload a photo and our AI will find every disease spot</p>
+
+    <div class="upload-box" onclick="document.getElementById('fileInput').click()">
+        <div style="font-size: 3rem;">📤</div>
+        <p>Click here to upload a tomato leaf image</p>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" onchange="handleFile(this.files[0])">
+
+    <div id="result">
+        <p style="font-size: 1.3rem; font-weight: 700;">Analysis Complete!</p>
+        <img id="resultImage" src="" alt="Result">
+        <div class="labels" id="labels"></div>
+    </div>
+
+    <script>
+        // ============================================
+        // PASTE YOUR API KEY ON THE NEXT LINE ONLY
+        // Replace the text inside the quotes
+        // ============================================
+        const API_KEY = 'rTXsM8hEEcV6XPP56XdC';
+
+        const MODEL_URL = 'https://detect.roboflow.com/tomato-leaf-disease-rxcft-qt8i3/1';
+
+        function handleFile(file) {
+            if (!file || !file.type.startsWith('image/')) {
+                alert('Please choose an image file');
+                return;
+            }
+
+            if (API_KEY === 'PASTE_YOUR_KEY_HERE' || API_KEY === '') {
+                alert('You need to paste your API key in the code first!\nLook for the line that says PASTE_YOUR_KEY_HERE');
+                return;
+            }
+
+            document.querySelector('.upload-box').innerHTML = '<div style="font-size:2rem;">⏳</div><p>Analyzing with AI...</p>';
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64 = e.target.result.split(',')[1];
+
+                fetch(MODEL_URL + '?api_key=' + API_KEY, {
+                    method: 'POST',
+                    body: base64,
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    drawResults(e.target.result, data.predictions || []);
+                })
+                .catch(err => {
+                    alert('Error: ' + err.message);
+                    reset();
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function drawResults(imgSrc, predictions) {
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+
+                predictions.forEach(p => {
+                    const x = p.x - p.width/2;
+                    const y = p.y - p.height/2;
+                    ctx.strokeStyle = '#e63946';
+                    ctx.lineWidth = 4;
+                    ctx.strokeRect(x, y, p.width, p.height);
+
+                    const label = p.class + ' ' + Math.round(p.confidence*100) + '%';
+                    ctx.fillStyle = '#e63946';
+                    ctx.font = 'bold 20px Arial';
+                    const w = ctx.measureText(label).width;
+                    ctx.fillRect(x, y-28, w+16, 28);
+                    ctx.fillStyle = 'white';
+                    ctx.fillText(label, x+8, y-6);
+                });
+
+                document.getElementById('resultImage').src = canvas.toDataURL();
+                document.getElementById('result').style.display = 'block';
+
+                const labelsDiv = document.getElementById('labels');
+                if (predictions.length === 0) {
+                    labelsDiv.innerHTML = '<div class="badge" style="background:#2d6a4f;">✅ No disease detected — Healthy leaf!</div>';
+                } else {
+                    labelsDiv.innerHTML = predictions.map(p => 
+                        `<div class="badge">${p.class} — ${Math.round(p.confidence*100)}%</div>`
+                    ).join('');
+                }
+
+                reset();
+            };
+            img.src = imgSrc;
+        }
+
+        function reset() {
+            document.querySelector('.upload-box').innerHTML = '<div style="font-size:3rem;">📤</div><p>Click here to upload a tomato leaf image</p>';
+        }
+    </script>
+
+</body>
+</html>
